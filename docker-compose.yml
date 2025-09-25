@@ -1,0 +1,60 @@
+version: '3.8'
+services:
+  traefik:
+    image: traefik:v2.10
+    command:
+      - --api.insecure=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entryPoints.web.address=:80
+    ports:
+      - "80:80"     # incoming apps
+      - "8080:8080" # traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:6.0
+    volumes:
+      - mongodata:/data/db
+    networks:
+      - proxy
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      - MONGO_URL=mongodb://mongo:27017/minideploy
+      - BASE_DOMAIN=lvh.me
+      - DOCKER_NETWORK=proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data/repos:/data/repos
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+      - traefik
+    networks:
+      - proxy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    networks:
+      - proxy
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mongodata:
+
+networks:
+  proxy:
+    name: proxy 
